@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8.12)
 project(bpftrace)
 
 set(STATIC_LINKING OFF CACHE BOOL "Build bpftrace as a statically linked executable")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+set(ENABLE_TESTS ON CACHE BOOL "Enable tests")
 
 add_compile_options("-std=c++14")
 add_compile_options("-Wno-format-security")
@@ -20,25 +22,34 @@ add_compile_options("-Wno-format-security")
 #add_compile_options("-Wstrict-overflow=5")
 #add_compile_options("-Wdisabled-optimization")
 
-enable_testing()
+if (ENABLE_TESTS)
+  enable_testing()
+endif()
 
-if (OFFLINE_BUILDS)
-  include(ExternalProject)
-  ExternalProject_Add(bcc
-    GIT_REPOSITORY https://github.com/iovisor/bcc
-    STEP_TARGETS build update
-    EXCLUDE_FROM_ALL 1
-    UPDATE_DISCONNECTED 1
-    BUILD_COMMAND ${CMAKE_COMMAND} --build . --target bcc-static
-    )
+if (SYSTEM_BCC_LIBRARY)
+  find_package(LibBcc REQUIRED)
+  include_directories(${LIBBCC_INCLUDE_DIRS})
 else()
-  include(ExternalProject)
-  ExternalProject_Add(bcc
-    GIT_REPOSITORY https://github.com/iovisor/bcc
-    STEP_TARGETS build update
-    EXCLUDE_FROM_ALL 1
-    BUILD_COMMAND ${CMAKE_COMMAND} --build . --target bcc-static
-    )
+  if (OFFLINE_BUILDS)
+    include(ExternalProject)
+    ExternalProject_Add(bcc
+      GIT_REPOSITORY https://github.com/iovisor/bcc
+      STEP_TARGETS build update
+      EXCLUDE_FROM_ALL 1
+      UPDATE_DISCONNECTED 1
+      BUILD_COMMAND ${CMAKE_COMMAND} --build . --target bcc-static
+      )
+  else()
+    include(ExternalProject)
+    ExternalProject_Add(bcc
+      GIT_REPOSITORY https://github.com/iovisor/bcc
+      STEP_TARGETS build update
+      EXCLUDE_FROM_ALL 1
+      BUILD_COMMAND ${CMAKE_COMMAND} --build . --target bcc-static
+      )
+  endif()
+  ExternalProject_Get_Property(bcc source_dir)
+  include_directories(${source_dir}/src/cc)
 endif()
 
 if (STATIC_LINKING)
@@ -48,7 +59,6 @@ if (STATIC_LINKING)
   set(CMAKE_LINK_SEARCH_END_STATIC TRUE)
 endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(LibElf REQUIRED)
 include_directories(${LIBELF_INCLUDE_DIRS})
 
@@ -75,7 +85,9 @@ include_directories(${CLANG_INCLUDE_DIRS})
 add_subdirectory(src/arch)
 add_subdirectory(src/ast)
 add_subdirectory(src)
-add_subdirectory(tests)
+if (ENABLE_TESTS)
+  add_subdirectory(tests)
+endif()
 add_subdirectory(resources)
 add_subdirectory(tools)
 add_subdirectory(man)
