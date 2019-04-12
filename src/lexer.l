@@ -144,7 +144,16 @@ struct|union            { BEGIN(STRUCT); buffer = ""; struct_type = std::string(
                           buffer += std::string(yytext);
                         }
 
-{ident}                 { return Parser::make_IDENT(yytext, loc); }
+{ident}                 {
+                          if (driver.bpftrace_.macros_.count(yytext) != 0) {
+                            const char *s = driver.bpftrace_.macros_[yytext].c_str();
+                            int z;
+                            for (z=strlen(s) - 1; z >= 0; z--)
+                              unput(s[z]);
+                          } else {
+                            return Parser::make_IDENT(yytext, loc);
+                          }
+                        }
 .                       { driver.error(loc, std::string("invalid character '") +
                                             std::string(yytext) + std::string("'")); }
 
